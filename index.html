@@ -373,6 +373,97 @@ function toast(msg){
   const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
   clearTimeout(window._tt); window._tt=setTimeout(()=>t.classList.remove('show'),2200);
 }
+function cap(s){ return s? s.charAt(0).toUpperCase()+s.slice(1) : s; }
+
+/* ================= FILTRE PAR PÉRIODE (réutilisable sur tous les onglets) ================= */
+// Chaque onglet possède son propre état : { mode:'semaine'|'mois'|'plage', weekStr, month, from, to }
+let periodStates = {
+  arr: { mode:'mois', weekStr:'', month:'', from:'', to:'' },
+  mv:  { mode:'mois', weekStr:'', month:'', from:'', to:'' },
+  ven: { mode:'mois', weekStr:'', month:'', from:'', to:'' },
+  dep: { mode:'mois', weekStr:'', month:'', from:'', to:'' },
+  stk: { mode:'mois', weekStr:'', month:'', from:'', to:'' },
+};
+function isoWeekStr(dateISO){
+  const d = new Date(dateISO+'T00:00:00');
+  const day = (d.getDay()+6)%7; // lundi = 0
+  d.setDate(d.getDate()-day+3); // jeudi de cette semaine
+  const firstThursday = new Date(d.getFullYear(),0,4);
+  const diff = d - firstThursday;
+  const week = 1 + Math.round(diff/(7*24*3600*1000));
+  return `${d.getFullYear()}-W${String(week).padStart(2,'0')}`;
+}
+function weekRangeFromStr(weekStr){
+  if(!weekStr || !weekStr.includes('-W')) weekStr = isoWeekStr(todayISO());
+  const [y,w] = weekStr.split('-W').map(Number);
+  const simple = new Date(y,0,1+(w-1)*7);
+  const dow = simple.getDay() || 7;
+  const monday = new Date(simple);
+  monday.setDate(simple.getDate() - dow + 1);
+  const sunday = new Date(monday); sunday.setDate(monday.getDate()+6);
+  return { from: monday.toISOString().slice(0,10), to: sunday.toISOString().slice(0,10) };
+}
+function monthRangeFromStr(month){
+  const [y,m] = month.split('-').map(Number);
+  const lastDay = new Date(y,m,0).getDate();
+  return { from: `${month}-01`, to: `${month}-${String(lastDay).padStart(2,'0')}` };
+}
+function initPeriod(p){
+  if(!p.month) p.month = monthKey(todayISO());
+  if(!p.weekStr) p.weekStr = isoWeekStr(todayISO());
+  if(!p.from) p.from = todayISO().slice(0,8)+'01';
+  if(!p.to) p.to = todayISO();
+}
+function periodRange(p){
+  initPeriod(p);
+  if(p.mode==='semaine') return weekRangeFromStr(p.weekStr);
+  if(p.mode==='mois') return monthRangeFromStr(p.month);
+  return { from:p.from, to:p.to };
+}
+function periodLabel(p){
+  initPeriod(p);
+  if(p.mode==='semaine'){ const r=weekRangeFromStr(p.weekStr); return `semaine du ${fmtDate(r.from)} au ${fmtDate(r.to)}`; }
+  if(p.mode==='mois') return cap(monthLabel(p.month));
+  return `du ${fmtDate(p.from)} au ${fmtDate(p.to)}`;
+}
+function filterByPeriod(list, dateField, p){
+  const {from,to} = periodRange(p);
+  return list.filter(x=>{ const d=(x[dateField]||'').slice(0,10); return d>=from && d<=to; });
+}
+function getAvailableMonthsFrom(...lists){
+  const set = new Set();
+  lists.forEach(l=> l.forEach(x=> set.add(monthKey(x.date))));
+  set.add(monthKey(todayISO()));
+  return Array.from(set).sort().reverse();
+}
+function periodFilterBar(prefix, months){
+  const p = periodStates[prefix];
+  initPeriod(p);
+  return `
+  <div class="filters">
+    <button class="chip ${p.mode==='semaine'?'active':''}" onclick="periodStates.${prefix}.mode='semaine';render();">Semaine</button>
+    <button class="chip ${p.mode==='mois'?'active':''}" onclick="periodStates.${prefix}.mode='mois';render();">Mois</button>
+    <button class="chip ${p.mode==='plage'?'active':''}" onclick="periodStates.${prefix}.mode='plage';render();">Plage de dates</button>
+  </div>
+  <div class="card" style="margin-bottom:14px;">
+    ${p.mode==='semaine'? `
+      <div class="field" style="margin-bottom:0;"><label>Semaine</label>
+        <input type="week" value="${p.weekStr}" onchange="periodStates.${prefix}.weekStr=this.value;render();">
+      </div>
+    ` : p.mode==='mois'? `
+      <div class="field" style="margin-bottom:0;"><label>Mois</label>
+        <select onchange="periodStates.${prefix}.month=this.value;render();">
+          ${months.map(m=>`<option value="${m}" ${m===p.month?'selected':''}>${cap(monthLabel(m))}</option>`).join('')}
+        </select>
+      </div>
+    ` : `
+      <div class="row2">
+        <div class="field" style="margin-bottom:0;"><label>Du</label><input type="date" value="${p.from}" onchange="periodStates.${prefix}.from=this.value;render();"></div>
+        <div class="field" style="margin-bottom:0;"><label>Au</label><input type="date" value="${p.to}" onchange="periodStates.${prefix}.to=this.value;render();"></div>
+      </div>
+    `}
+  </div>`;
+}
 
 /* ================= MOVEMENT LOGIC ================= */
 function addMovement(type, data){
@@ -591,8 +682,10 @@ function showMoveDetail(id){
 /* ================= MOUVEMENTS VIEW ================= */
 let mvFilter = 'tous';
 function viewMouvements(){
-  const list = movements.filter(m=> (m.type==='entree'||m.type==='sortie') &&
+  const months = getAvailableMonthsFrom(movements);
+  let list = movements.filter(m=> (m.type==='entree'||m.type==='sortie') &&
     (mvFilter==='tous' || m.type===mvFilter));
+  list = filterByPeriod(list, 'date', periodStates.mv);
   return `
   <div class="quickrow">
     <button class="btn btn-blue full" onclick="openMoveForm('entree')">＋ Ajustement +</button>
@@ -603,10 +696,37 @@ function viewMouvements(){
     <button class="chip ${mvFilter==='entree'?'active':''}" onclick="mvFilter='entree';render();">Ajustements +</button>
     <button class="chip ${mvFilter==='sortie'?'active':''}" onclick="mvFilter='sortie';render();">Sorties</button>
   </div>
+  ${periodFilterBar('mv', months)}
+  <div class="quickrow">
+    <button class="btn btn-outline full" onclick="printMovementsReport()">🖨 Imprimer / PDF</button>
+    <button class="btn wa-btn full" onclick="shareMovementsWhatsApp()">Partager via WhatsApp</button>
+  </div>
   <div class="card">
-    ${list.length? list.map(rowMovement).join('') : `<div class="empty">Aucun mouvement dans cette catégorie.</div>`}
+    <h2>${list.length} mouvement${list.length>1?'s':''} — ${periodLabel(periodStates.mv)}</h2>
+    ${list.length? list.map(rowMovement).join('') : `<div class="empty">Aucun mouvement sur cette période.</div>`}
   </div>
   `;
+}
+
+function printMovementsReport(){
+  const list = filterByPeriod(movements.filter(m=>(m.type==='entree'||m.type==='sortie') && (mvFilter==='tous'||m.type===mvFilter)), 'date', periodStates.mv)
+    .slice().sort((a,b)=> a.date.localeCompare(b.date));
+  const rows = list.map(m=>`<tr><td>${fmtDate(m.date)}</td><td>${m.type==='entree'?'Ajustement +':'Sortie'}</td><td>${esc(m.articleName)}</td><td style="text-align:right;">${fmtN(m.qty)} ${m.unit}</td><td>${esc(m.party||'—')}</td></tr>`).join('');
+  const body = `
+    <div class="print-stats"><div>Nombre de mouvements<b>${list.length}</b></div></div>
+    <table class="print-table">
+      <thead><tr><th>Date</th><th>Type</th><th>Article</th><th style="text-align:right;">Quantité</th><th>Motif / partie</th></tr></thead>
+      <tbody>${rows || `<tr><td colspan="5">Aucun mouvement sur cette période.</td></tr>`}</tbody>
+    </table>`;
+  printReport(`Mouvements de stock — ${periodLabel(periodStates.mv)}`, body);
+}
+function shareMovementsWhatsApp(){
+  const list = filterByPeriod(movements.filter(m=>(m.type==='entree'||m.type==='sortie') && (mvFilter==='tous'||m.type===mvFilter)), 'date', periodStates.mv)
+    .slice().sort((a,b)=> a.date.localeCompare(b.date));
+  let text = `Mouvements de stock — ${periodLabel(periodStates.mv)}\n${settings.businessName}\n\n`;
+  list.forEach(m=>{ text += `${fmtDate(m.date)} · ${m.type==='entree'?'Ajust.+':'Sortie'} · ${m.articleName} : ${fmtN(m.qty)} ${m.unit}\n`; });
+  text += `\nTotal : ${list.length} mouvement(s)`;
+  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
 }
 
 function openMoveForm(type){
@@ -664,20 +784,52 @@ function showShareReceipt(mv){
 
 /* ================= VENTES VIEW ================= */
 function viewVentes(){
-  const ventes = movements.filter(m=>m.type==='vente');
-  const todayRev = ventes.filter(m=>isToday(m.date)).reduce((s,m)=>s+m.total,0);
-  const monthRev = ventes.filter(m=>isThisMonth(m.date)).reduce((s,m)=>s+m.total,0);
+  const allVentes = movements.filter(m=>m.type==='vente');
+  const months = getAvailableMonthsFrom(allVentes);
+  const todayRev = allVentes.filter(m=>isToday(m.date)).reduce((s,m)=>s+m.total,0);
+  const monthRev = allVentes.filter(m=>isThisMonth(m.date)).reduce((s,m)=>s+m.total,0);
+  const ventes = filterByPeriod(allVentes, 'date', periodStates.ven);
+  const periodRev = ventes.reduce((s,m)=>s+m.total,0);
   return `
   <div class="quickrow"><button class="btn btn-green full" onclick="openSaleForm()">＋ Nouvelle vente</button></div>
   <div class="stat-grid" style="margin-bottom:14px;">
     <div class="stat green"><div class="n">${fmtN(todayRev)}</div><div class="l">Aujourd'hui (${settings.currency})</div></div>
     <div class="stat blue"><div class="n">${fmtN(monthRev)}</div><div class="l">Ce mois-ci (${settings.currency})</div></div>
   </div>
+  ${periodFilterBar('ven', months)}
+  <div class="quickrow">
+    <button class="btn btn-outline full" onclick="printSalesReport()">🖨 Imprimer / PDF</button>
+    <button class="btn wa-btn full" onclick="shareSalesWhatsApp()">Partager via WhatsApp</button>
+  </div>
   <div class="card">
-    <h2>Historique des ventes</h2>
-    ${ventes.length? ventes.map(rowMovement).join('') : `<div class="empty">Aucune vente enregistrée.</div>`}
+    <h2>${ventes.length} vente${ventes.length>1?'s':''} — ${periodLabel(periodStates.ven)} · ${fmtN(periodRev)} ${settings.currency}</h2>
+    ${ventes.length? ventes.map(rowMovement).join('') : `<div class="empty">Aucune vente sur cette période.</div>`}
   </div>
   `;
+}
+
+function printSalesReport(){
+  const list = filterByPeriod(movements.filter(m=>m.type==='vente'), 'date', periodStates.ven).slice().sort((a,b)=>a.date.localeCompare(b.date));
+  const total = list.reduce((s,m)=>s+m.total,0);
+  const rows = list.map(m=>`<tr><td>${fmtDate(m.date)}</td><td>${esc(m.articleName)}</td><td style="text-align:right;">${fmtN(m.qty)} ${m.unit}</td><td>${esc(m.party||'—')}</td><td style="text-align:right;">${fmtN(m.total)} ${settings.currency}</td></tr>`).join('');
+  const body = `
+    <div class="print-stats">
+      <div>Total ventes<b>${fmtN(total)} ${settings.currency}</b></div>
+      <div>Nombre de ventes<b>${list.length}</b></div>
+    </div>
+    <table class="print-table">
+      <thead><tr><th>Date</th><th>Article</th><th style="text-align:right;">Quantité</th><th>Client</th><th style="text-align:right;">Total</th></tr></thead>
+      <tbody>${rows || `<tr><td colspan="5">Aucune vente sur cette période.</td></tr>`}</tbody>
+    </table>`;
+  printReport(`Rapport des ventes — ${periodLabel(periodStates.ven)}`, body);
+}
+function shareSalesWhatsApp(){
+  const list = filterByPeriod(movements.filter(m=>m.type==='vente'), 'date', periodStates.ven).slice().sort((a,b)=>a.date.localeCompare(b.date));
+  const total = list.reduce((s,m)=>s+m.total,0);
+  let text = `Rapport des ventes — ${periodLabel(periodStates.ven)}\n${settings.businessName}\n\n`;
+  list.forEach(m=>{ text += `${fmtDate(m.date)} · ${m.articleName} : ${fmtN(m.qty)} ${m.unit} = ${fmtN(m.total)} ${settings.currency}\n`; });
+  text += `\nTOTAL : ${fmtN(total)} ${settings.currency} (${list.length} vente${list.length>1?'s':''})`;
+  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
 }
 
 function openSaleForm(){
@@ -729,10 +881,6 @@ function showSaleReceipt(mv){
 }
 
 /* ================= DEPENSES (EXPENSES) ================= */
-let depFilterMode = 'mois'; // 'mois' | 'periode'
-let depSelectedMonth = null;
-let depFrom = null, depTo = null;
-
 function addExpense(data){
   const amount = Number(data.amount);
   if(!amount || amount<=0){ toast('Montant invalide'); return false; }
@@ -747,26 +895,10 @@ function deleteExpense(id){
   persist(); toast('Dépense supprimée'); render();
 }
 
-function getAvailableMonths(){
-  const set = new Set(expenses.map(e=>monthKey(e.date)));
-  set.add(monthKey(todayISO()));
-  return Array.from(set).sort().reverse();
-}
-
 function viewDepenses(){
-  if(!depSelectedMonth) depSelectedMonth = monthKey(todayISO());
-  if(!depFrom) depFrom = todayISO().slice(0,8)+'01';
-  if(!depTo) depTo = todayISO();
-
-  let list;
-  if(depFilterMode==='mois'){
-    list = expenses.filter(e=> monthKey(e.date)===depSelectedMonth);
-  } else {
-    list = expenses.filter(e=> e.date >= depFrom && e.date <= depTo);
-  }
-  list = list.slice().sort((a,b)=> b.date.localeCompare(a.date));
+  const months = getAvailableMonthsFrom(expenses);
+  const list = filterByPeriod(expenses, 'date', periodStates.dep).slice().sort((a,b)=> b.date.localeCompare(a.date));
   const total = list.reduce((s,e)=>s+Number(e.amount),0);
-  const months = getAvailableMonths();
 
   const byCat = {};
   list.forEach(e=>{ byCat[e.category] = (byCat[e.category]||0) + Number(e.amount); });
@@ -775,29 +907,10 @@ function viewDepenses(){
   return `
   <div class="quickrow"><button class="btn btn-primary full" onclick="openExpenseForm()">＋ Nouvelle dépense</button></div>
 
-  <div class="filters">
-    <button class="chip ${depFilterMode==='mois'?'active':''}" onclick="depFilterMode='mois';render();">Par mois</button>
-    <button class="chip ${depFilterMode==='periode'?'active':''}" onclick="depFilterMode='periode';render();">Par période</button>
-  </div>
-
-  <div class="card">
-    ${depFilterMode==='mois'? `
-      <div class="field" style="margin-bottom:0;">
-        <label>Mois</label>
-        <select onchange="depSelectedMonth=this.value;render();">
-          ${months.map(m=>`<option value="${m}" ${m===depSelectedMonth?'selected':''}>${cap(monthLabel(m))}</option>`).join('')}
-        </select>
-      </div>
-    ` : `
-      <div class="row2">
-        <div class="field" style="margin-bottom:0;"><label>Du</label><input type="date" value="${depFrom}" onchange="depFrom=this.value;render();"></div>
-        <div class="field" style="margin-bottom:0;"><label>Au</label><input type="date" value="${depTo}" onchange="depTo=this.value;render();"></div>
-      </div>
-    `}
-  </div>
+  ${periodFilterBar('dep', months)}
 
   <div class="stat-grid" style="margin-bottom:14px;grid-template-columns:1fr;">
-    <div class="stat red"><div class="n">${fmtN(total)} ${settings.currency}</div><div class="l">Total ${depFilterMode==='mois'? cap(monthLabel(depSelectedMonth)) : 'sur la période'} (${list.length} dépense${list.length>1?'s':''})</div></div>
+    <div class="stat red"><div class="n">${fmtN(total)} ${settings.currency}</div><div class="l">Total ${periodLabel(periodStates.dep)} (${list.length} dépense${list.length>1?'s':''})</div></div>
   </div>
 
   <div class="quickrow">
@@ -827,12 +940,12 @@ function viewDepenses(){
   `;
 }
 
-function cap(s){ return s? s.charAt(0).toUpperCase()+s.slice(1) : s; }
-
 /* ================= VUE ARRIVAGES ================= */
 function viewArrivages(){
   const pending = arrivals.filter(a=>a.status==='attente');
-  const done = arrivals.filter(a=>a.status==='trie');
+  const allDone = arrivals.filter(a=>a.status==='trie');
+  const months = getAvailableMonthsFrom(allDone);
+  const done = filterByPeriod(allDone, 'date', periodStates.arr);
   return `
   <div class="quickrow"><button class="btn btn-blue full" onclick="openArrivalForm()">＋ Nouvel arrivage</button></div>
 
@@ -847,16 +960,48 @@ function viewArrivages(){
       </div>`).join('')}
   </div>` : `<div class="card"><div class="empty">Aucun arrivage en attente de triage.</div></div>`}
 
+  <div class="card" style="padding-bottom:2px;"><h2 style="margin-bottom:0;">Historique des arrivages triés</h2></div>
+  ${periodFilterBar('arr', months)}
+  <div class="quickrow">
+    <button class="btn btn-outline full" onclick="printArrivalsReport()">🖨 Imprimer / PDF</button>
+    <button class="btn wa-btn full" onclick="shareArrivalsWhatsApp()">Partager via WhatsApp</button>
+  </div>
+
   <div class="card">
-    <h2>✓ Arrivages triés</h2>
+    <h2>${done.length} arrivage${done.length>1?'s':''} trié${done.length>1?'s':''} — ${periodLabel(periodStates.arr)}</h2>
     ${done.length? done.map(a=>`
       <div class="list-row" onclick="showArrivalDetail('${a.id}')" style="cursor:pointer;">
         <div class="icon" style="background:var(--green)">✓</div>
         <div class="body"><div class="t1">${esc(a.provenance)}</div><div class="t2">${fmtDate(a.date)} · ${a.categories.length} catégorie(s)</div></div>
         <div class="qty">${fmtN(a.totalReceived)}</div>
-      </div>`).join('') : `<div class="empty">Aucun arrivage trié pour le moment.</div>`}
+      </div>`).join('') : `<div class="empty">Aucun arrivage trié sur cette période.</div>`}
   </div>
   `;
+}
+function printArrivalsReport(){
+  const allDone = arrivals.filter(a=>a.status==='trie');
+  const list = filterByPeriod(allDone, 'date', periodStates.arr).slice().sort((a,b)=>a.date.localeCompare(b.date));
+  const total = list.reduce((s,a)=>s+a.totalReceived,0);
+  const rows = list.map(a=>`<tr><td>${fmtDate(a.date)}</td><td>${esc(a.provenance)}</td><td style="text-align:right;">${fmtN(a.totalReceived)}</td><td>${a.categories.map(c=>`${esc(c.articleName)}: ${fmtN(c.qty)}`).join(', ')}</td></tr>`).join('');
+  const body = `
+    <div class="print-stats">
+      <div>Total poulets reçus<b>${fmtN(total)}</b></div>
+      <div>Nombre d'arrivages<b>${list.length}</b></div>
+    </div>
+    <table class="print-table">
+      <thead><tr><th>Date</th><th>Provenance</th><th style="text-align:right;">Total reçu</th><th>Répartition par catégorie</th></tr></thead>
+      <tbody>${rows || `<tr><td colspan="4">Aucun arrivage sur cette période.</td></tr>`}</tbody>
+    </table>`;
+  printReport(`Rapport des arrivages — ${periodLabel(periodStates.arr)}`, body);
+}
+function shareArrivalsWhatsApp(){
+  const allDone = arrivals.filter(a=>a.status==='trie');
+  const list = filterByPeriod(allDone, 'date', periodStates.arr).slice().sort((a,b)=>a.date.localeCompare(b.date));
+  const total = list.reduce((s,a)=>s+a.totalReceived,0);
+  let text = `Rapport des arrivages — ${periodLabel(periodStates.arr)}\n${settings.businessName}\n\n`;
+  list.forEach(a=>{ text += `${fmtDate(a.date)} · ${a.provenance} : ${fmtN(a.totalReceived)} poulets\n`; });
+  text += `\nTOTAL : ${fmtN(total)} poulets (${list.length} arrivage${list.length>1?'s':''})`;
+  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
 }
 
 function openArrivalForm(){
@@ -1034,11 +1179,10 @@ function showExpenseDetail(id){
 }
 
 function currentExpenseList(){
-  if(depFilterMode==='mois') return expenses.filter(e=> monthKey(e.date)===depSelectedMonth).slice().sort((a,b)=>b.date.localeCompare(a.date));
-  return expenses.filter(e=> e.date >= depFrom && e.date <= depTo).slice().sort((a,b)=>b.date.localeCompare(a.date));
+  return filterByPeriod(expenses, 'date', periodStates.dep).slice().sort((a,b)=>b.date.localeCompare(a.date));
 }
 function currentExpensePeriodLabel(){
-  return depFilterMode==='mois'? cap(monthLabel(depSelectedMonth)) : `du ${fmtDate(depFrom)} au ${fmtDate(depTo)}`;
+  return periodLabel(periodStates.dep);
 }
 
 function printExpensesReport(){
@@ -1073,6 +1217,10 @@ function viewStock(){
   articles.forEach(a=>{ byUnit[a.unit] = (byUnit[a.unit]||0) + Number(a.stock); });
   const lowCount = articles.filter(a=>a.stock<=a.threshold).length;
 
+  const allStockMoves = movements.filter(m=> stkArticleFilter==='tous' || m.articleId===stkArticleFilter);
+  const months = getAvailableMonthsFrom(allStockMoves);
+  const histList = filterByPeriod(allStockMoves, 'date', periodStates.stk).slice().sort((a,b)=> b.date.localeCompare(a.date));
+
   return `
   <div class="card">
     <h2>Inventaire — stock total</h2>
@@ -1104,7 +1252,54 @@ function viewStock(){
       </div>`;
     }).join('')}
   </div>
+
+  <div class="card">
+    <h2>📜 Historique complet des mouvements</h2>
+    <div class="field">
+      <label>Article</label>
+      <select onchange="stkArticleFilter=this.value;render();">
+        <option value="tous" ${stkArticleFilter==='tous'?'selected':''}>Tous les articles</option>
+        ${articles.map(a=>`<option value="${a.id}" ${a.id===stkArticleFilter?'selected':''}>${esc(a.name)}</option>`).join('')}
+      </select>
+    </div>
+  </div>
+  ${periodFilterBar('stk', months)}
+  <div class="quickrow">
+    <button class="btn btn-outline full" onclick="printStockHistoryReport()">🖨 Imprimer / PDF l'historique</button>
+    <button class="btn wa-btn full" onclick="shareStockHistoryWhatsApp()">Partager via WhatsApp</button>
+  </div>
+  <div class="card">
+    <h2>${histList.length} opération${histList.length>1?'s':''} — ${periodLabel(periodStates.stk)}</h2>
+    ${histList.length? histList.map(rowMovement).join('') : `<div class="empty">Aucune opération sur cette période.</div>`}
+  </div>
   `;
+}
+let stkArticleFilter = 'tous';
+function printStockHistoryReport(){
+  const list = filterByPeriod(movements.filter(m=> stkArticleFilter==='tous' || m.articleId===stkArticleFilter), 'date', periodStates.stk)
+    .slice().sort((a,b)=>a.date.localeCompare(b.date));
+  const typeLabel = t=> ({entree:'Ajustement +', sortie:'Sortie', vente:'Vente', ajustement_plus:'Ajustement +', ajustement_moins:'Ajustement -'}[t] || t);
+  const rows = list.map(m=>`<tr><td>${fmtDate(m.date)}</td><td>${typeLabel(m.type)}</td><td>${esc(m.articleName)}</td><td style="text-align:right;">${fmtN(m.qty)} ${m.unit}</td><td>${esc(m.party||'—')}</td>${m.total? `<td style="text-align:right;">${fmtN(m.total)} ${settings.currency}</td>`:'<td>—</td>'}</tr>`).join('');
+  const articleLabel = stkArticleFilter==='tous' ? 'Tous les articles' : (articleById(stkArticleFilter)?.name || 'Article');
+  const body = `
+    <div class="print-stats">
+      <div>Article<b>${esc(articleLabel)}</b></div>
+      <div>Nombre d'opérations<b>${list.length}</b></div>
+    </div>
+    <table class="print-table">
+      <thead><tr><th>Date</th><th>Type</th><th>Article</th><th style="text-align:right;">Quantité</th><th>Motif / partie</th><th style="text-align:right;">Valeur</th></tr></thead>
+      <tbody>${rows || `<tr><td colspan="6">Aucune opération sur cette période.</td></tr>`}</tbody>
+    </table>`;
+  printReport(`Historique des mouvements — ${periodLabel(periodStates.stk)}`, body);
+}
+function shareStockHistoryWhatsApp(){
+  const list = filterByPeriod(movements.filter(m=> stkArticleFilter==='tous' || m.articleId===stkArticleFilter), 'date', periodStates.stk)
+    .slice().sort((a,b)=>a.date.localeCompare(b.date));
+  const typeLabel = t=> ({entree:'Ajust.+', sortie:'Sortie', vente:'Vente', ajustement_plus:'Ajust.+', ajustement_moins:'Ajust.-'}[t] || t);
+  let text = `Historique des mouvements — ${periodLabel(periodStates.stk)}\n${settings.businessName}\n\n`;
+  list.forEach(m=>{ text += `${fmtDate(m.date)} · ${typeLabel(m.type)} · ${m.articleName} : ${fmtN(m.qty)} ${m.unit}\n`; });
+  text += `\nTotal : ${list.length} opération(s)`;
+  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
 }
 
 function printInventoryReport(){
