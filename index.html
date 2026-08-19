@@ -36,7 +36,7 @@
   header.topbar{
     background:var(--ink);color:#fff;padding:16px 18px 18px;
     display:flex;align-items:center;justify-content:space-between;
-    position:sticky;top:0;z-index:20;
+    position:sticky;top:0;z-index:20;box-shadow:0 3px 10px rgba(0,0,0,.18);
   }
   header.topbar .brand{display:flex;flex-direction:column;gap:2px;}
   header.topbar .brand small{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#9FB2B6;}
@@ -47,27 +47,35 @@
   main{max-width:960px;margin:0 auto;padding:16px;}
 
   /* CARDS */
-  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:14px;}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:14px;
+    box-shadow:0 1px 2px rgba(28,43,46,.04), 0 2px 8px rgba(28,43,46,.05);}
   .card h2{font-size:13px;text-transform:uppercase;color:var(--ink-soft);letter-spacing:.08em;margin-bottom:10px;}
+  .card .sub{font-size:12px;color:var(--ink-soft);margin:-8px 0 14px;}
 
-  /* PIPELINE SIGNATURE */
-  .pipeline{display:flex;align-items:flex-start;justify-content:space-between;position:relative;padding:8px 4px 0;}
-  .pipeline:before{content:"";position:absolute;top:22px;left:26px;right:26px;height:3px;
-    background:linear-gradient(90deg,var(--blue),var(--amber),var(--green));}
-  .pipeline .stage{display:flex;flex-direction:column;align-items:center;gap:9px;flex:1;position:relative;z-index:1;}
-  .pipeline .dot{width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;
-    font-family:var(--font-mono);font-weight:800;font-size:17px;color:#fff;border:3px solid var(--bg);
-    box-shadow:0 2px 6px rgba(0,0,0,.15);}
-  .pipeline .stage:nth-child(1) .dot{background:var(--blue);}
-  .pipeline .stage:nth-child(2) .dot{background:var(--ink);}
-  .pipeline .stage:nth-child(3) .dot{background:var(--amber);}
-  .pipeline .stage:nth-child(4) .dot{background:var(--green);}
-  .pipeline .stage span{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);text-align:center;font-weight:600;}
+  /* PIPELINE SIGNATURE — icônes en badge, chiffres libres en dessous (jamais tronqués) */
+  .pipeline{display:flex;align-items:flex-start;justify-content:space-between;position:relative;padding:6px 2px 0;}
+  .pipeline:before{content:"";position:absolute;top:22px;left:22px;right:22px;height:3px;border-radius:2px;
+    background:linear-gradient(90deg,var(--blue),var(--ink),var(--amber),var(--green));}
+  .pipeline .stage{display:flex;flex-direction:column;align-items:center;gap:0;flex:1;min-width:0;position:relative;z-index:1;}
+  .pipeline .icon-badge{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    font-size:19px;color:#fff;border:3px solid var(--surface);box-shadow:0 2px 6px rgba(0,0,0,.16);flex-shrink:0;}
+  .pipeline .stage:nth-child(1) .icon-badge{background:var(--blue);}
+  .pipeline .stage:nth-child(2) .icon-badge{background:var(--ink);}
+  .pipeline .stage:nth-child(3) .icon-badge{background:var(--amber);}
+  .pipeline .stage:nth-child(4) .icon-badge{background:var(--green);}
+  .pipeline .stage .num{font-family:var(--font-mono);font-weight:800;font-size:19px;color:var(--ink);margin-top:8px;
+    line-height:1.1;letter-spacing:-.01em;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 2px;}
+  .pipeline .stage .lbl{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);
+    text-align:center;font-weight:700;margin-top:3px;}
 
   .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-  .stat{border-radius:12px;padding:14px 16px;border:1px solid transparent;position:relative;overflow:hidden;}
+  .stat{border-radius:12px;padding:14px 16px;border:1px solid transparent;position:relative;overflow:hidden;
+    box-shadow:0 1px 2px rgba(28,43,46,.04);}
   .stat:before{content:"";position:absolute;top:0;left:0;bottom:0;width:4px;}
-  .stat .n{font-family:var(--font-mono);font-size:29px;font-weight:800;line-height:1.15;letter-spacing:-.01em;}
+  .stat .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;}
+  .stat .ic{font-size:15px;opacity:.65;}
+  .stat .n{font-family:var(--font-mono);font-size:27px;font-weight:800;line-height:1.15;letter-spacing:-.01em;
+    max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .stat .l{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);font-weight:600;margin-top:2px;}
   .stat.blue{background:var(--blue-soft);} .stat.blue:before{background:var(--blue);} .stat.blue .n{color:var(--blue);}
   .stat.amber{background:var(--amber-soft);} .stat.amber:before{background:var(--amber);} .stat.amber .n{color:var(--amber);}
@@ -525,31 +533,74 @@ function deleteArrival(id){
   toast("Arrivage supprimé");
   render();
 }
+const DECOUPE_PRESETS = ['Ailes','Cuisses','Pattes','Gésiers','Cou','Blancs','Carcasse','Foie','Cœur'];
+
 function confirmTriage(arrivalId, rows){
   const ar = arrivals.find(a=>a.id===arrivalId);
   if(!ar){ toast("Arrivage introuvable"); return false; }
-  const clean = rows.filter(r=>r.qty>0);
-  if(!clean.length){ toast("Ajoutez au moins une catégorie avec une quantité"); return false; }
-  const sum = clean.reduce((s,r)=>s+r.qty,0);
+  const clean = rows.filter(r=> Number(r.qty)>0);
+  if(!clean.length){ toast("Ajoutez au moins un lot avec une quantité"); return false; }
+  const sum = clean.reduce((s,r)=>s+Number(r.qty),0);
   if(sum !== ar.totalReceived){
-    toast(`Le total des catégories (${fmtN(sum)}) ne correspond pas au total reçu (${fmtN(ar.totalReceived)})`);
+    toast(`Le total des lots (${fmtN(sum)}) ne correspond pas au total reçu (${fmtN(ar.totalReceived)})`);
     return false;
   }
-  clean.forEach(r=>{
-    let art = articleById(r.articleId);
-    if(!art){
-      art = { id: uid(), name: r.articleName, unit: 'pièce', stock: 0, threshold: 10 };
-      articles.push(art);
+  // Validation : chaque lot de découpe doit avoir au moins un produit obtenu
+  for(const r of clean){
+    if(r.kind==='decoupe'){
+      const validOutputs = (r.outputs||[]).filter(o=> ((o.articleId||o.articleName||'').toString().trim()) && Number(o.qty)>0);
+      if(!validOutputs.length){ toast("Chaque lot destiné à la découpe doit avoir au moins un produit obtenu (ailes, cuisses...)"); return false; }
     }
-    art.stock += r.qty;
-    movements.unshift({
-      id: uid(), type:'entree', articleId: art.id, articleName: art.name, unit: art.unit,
-      qty: r.qty, date: ar.date, party: ar.provenance, ref: `Arrivage ${fmtDate(ar.date)}`,
-      note: `Triage arrivage — provenance : ${ar.provenance}`, unitPrice:0, total:0
-    });
+  }
+
+  const categories = [];
+  clean.forEach(r=>{
+    if(r.kind==='decoupe'){
+      const validOutputs = (r.outputs||[]).filter(o=> ((o.articleId||o.articleName||'').toString().trim()) && Number(o.qty)>0);
+      const savedOutputs = [];
+      validOutputs.forEach(o=>{
+        let art = o.articleId ? articleById(o.articleId) : null;
+        if(!art){
+          const name = (o.articleName||'').trim();
+          art = articles.find(x=> x.name.toLowerCase() === name.toLowerCase());
+        }
+        if(!art){
+          art = { id: uid(), name: (o.articleName||'').trim(), unit: o.unit||'kg', stock: 0, threshold: 5 };
+          articles.push(art);
+        }
+        art.stock += Number(o.qty);
+        movements.unshift({
+          id: uid(), type:'entree', articleId: art.id, articleName: art.name, unit: art.unit,
+          qty: Number(o.qty), date: ar.date, party: ar.provenance, ref: `Arrivage ${fmtDate(ar.date)} (découpe)`,
+          note: `Issu de la découpe de ${fmtN(r.qty)} poulets — provenance : ${ar.provenance}`, unitPrice:0, total:0
+        });
+        savedOutputs.push({ articleId: art.id, articleName: art.name, qty: Number(o.qty), unit: art.unit });
+      });
+      // Traçabilité : combien de poulets sont partis en découpe (pas d'impact stock direct)
+      movements.unshift({
+        id: uid(), type:'decoupe_conso', articleId:'', articleName:'Poulets destinés à la découpe', unit:'pièce',
+        qty: Number(r.qty), date: ar.date, party: ar.provenance, ref: `Arrivage ${fmtDate(ar.date)}`,
+        note: `${fmtN(r.qty)} poulets transformés en : ${savedOutputs.map(o=>`${o.articleName} (${fmtN(o.qty)} ${o.unit})`).join(', ')}`,
+        unitPrice:0, total:0
+      });
+      categories.push({ kind:'decoupe', qty: Number(r.qty), outputs: savedOutputs });
+    } else {
+      let art = articleById(r.articleId);
+      if(!art){
+        art = { id: uid(), name: r.articleName, unit: 'pièce', stock: 0, threshold: 10 };
+        articles.push(art);
+      }
+      art.stock += Number(r.qty);
+      movements.unshift({
+        id: uid(), type:'entree', articleId: art.id, articleName: art.name, unit: art.unit,
+        qty: Number(r.qty), date: ar.date, party: ar.provenance, ref: `Arrivage ${fmtDate(ar.date)}`,
+        note: `Triage arrivage — provenance : ${ar.provenance}`, unitPrice:0, total:0
+      });
+      categories.push({ kind:'direct', articleId: art.id, articleName: art.name, qty: Number(r.qty) });
+    }
   });
   ar.status = 'trie';
-  ar.categories = clean;
+  ar.categories = categories;
   persist();
   toast("✓ Arrivage trié et envoyé en chambre froide");
   return true;
@@ -583,15 +634,17 @@ function viewDashboard(){
   const lowStock = articles.filter(a=>a.stock <= a.threshold);
   const recent = movements.slice(0,5);
   const monthExpenses = expenses.filter(e=>isThisMonth(e.date)).reduce((s,e)=>s+Number(e.amount),0);
+  const todayLabel = new Date().toLocaleDateString('fr-FR',{weekday:'long', day:'numeric', month:'long'});
 
   return `
   <div class="card">
-    <h2>Chaîne de production — aujourd'hui</h2>
+    <h2>Chaîne de production</h2>
+    <div class="sub">${cap(todayLabel)}</div>
     <div class="pipeline">
-      <div class="stage"><div class="dot">${fmtN(todayEntrees)}</div><span>Réception</span></div>
-      <div class="stage"><div class="dot">${fmtN(totalStock)}</div><span>Chambre froide</span></div>
-      <div class="stage"><div class="dot">${fmtN(todaySorties)}</div><span>Sortie</span></div>
-      <div class="stage"><div class="dot">${fmtN(todayVentesQty)}</div><span>Vente</span></div>
+      <div class="stage"><div class="icon-badge">📥</div><div class="num">${fmtN(todayEntrees)}</div><div class="lbl">Réception</div></div>
+      <div class="stage"><div class="icon-badge">❄️</div><div class="num">${fmtN(totalStock)}</div><div class="lbl">Chambre froide</div></div>
+      <div class="stage"><div class="icon-badge">📤</div><div class="num">${fmtN(todaySorties)}</div><div class="lbl">Sortie</div></div>
+      <div class="stage"><div class="icon-badge">💰</div><div class="num">${fmtN(todayVentesQty)}</div><div class="lbl">Vente</div></div>
     </div>
   </div>
 
@@ -614,10 +667,10 @@ function viewDashboard(){
   </div>` : ''}
 
   <div class="stat-grid" style="margin-bottom:14px;">
-    <div class="stat blue"><div class="n">${fmtN(totalStock)}</div><div class="l">Stock total (unités)</div></div>
-    <div class="stat green"><div class="n">${fmtN(todayRevenue)}</div><div class="l">Ventes du jour (${settings.currency})</div></div>
-    <div class="stat amber"><div class="n">${fmtN(todaySorties)}</div><div class="l">Sorties du jour</div></div>
-    <div class="stat red"><div class="n">${fmtN(monthExpenses)}</div><div class="l">Dépenses du mois (${settings.currency})</div></div>
+    <div class="stat blue"><div class="top"><span class="ic">📦</span></div><div class="n">${fmtN(totalStock)}</div><div class="l">Stock total (unités)</div></div>
+    <div class="stat green"><div class="top"><span class="ic">💰</span></div><div class="n">${fmtN(todayRevenue)}</div><div class="l">Ventes du jour (${settings.currency})</div></div>
+    <div class="stat amber"><div class="top"><span class="ic">📤</span></div><div class="n">${fmtN(todaySorties)}</div><div class="l">Sorties du jour</div></div>
+    <div class="stat red"><div class="top"><span class="ic">🧾</span></div><div class="n">${fmtN(monthExpenses)}</div><div class="l">Dépenses du mois (${settings.currency})</div></div>
   </div>
 
   ${lowStock.length? `
@@ -649,6 +702,7 @@ function rowMovement(m){
     vente:{icon:'💰', bg:'var(--green)', label:'Vente'},
     ajustement_plus:{icon:'✎', bg:'var(--ink-soft)', label:'Ajustement'},
     ajustement_moins:{icon:'✎', bg:'var(--ink-soft)', label:'Ajustement'},
+    decoupe_conso:{icon:'🔪', bg:'var(--amber)', label:'Poulets → découpe'},
   }[m.type] || {icon:'•',bg:'var(--ink-soft)',label:m.type};
   const sub = [fmtDate(m.date), m.party, m.ref].filter(Boolean).join(' · ');
   return `
@@ -982,14 +1036,17 @@ function printArrivalsReport(){
   const allDone = arrivals.filter(a=>a.status==='trie');
   const list = filterByPeriod(allDone, 'date', periodStates.arr).slice().sort((a,b)=>a.date.localeCompare(b.date));
   const total = list.reduce((s,a)=>s+a.totalReceived,0);
-  const rows = list.map(a=>`<tr><td>${fmtDate(a.date)}</td><td>${esc(a.provenance)}</td><td style="text-align:right;">${fmtN(a.totalReceived)}</td><td>${a.categories.map(c=>`${esc(c.articleName)}: ${fmtN(c.qty)}`).join(', ')}</td></tr>`).join('');
+  const catLabel = c=> c.kind==='decoupe'
+    ? `Découpe (${fmtN(c.qty)} poulets) → ${(c.outputs||[]).map(o=>`${esc(o.articleName)}: ${fmtN(o.qty)} ${o.unit}`).join(', ')}`
+    : `${esc(c.articleName)}: ${fmtN(c.qty)}`;
+  const rows = list.map(a=>`<tr><td>${fmtDate(a.date)}</td><td>${esc(a.provenance)}</td><td style="text-align:right;">${fmtN(a.totalReceived)}</td><td>${a.categories.map(catLabel).join(' · ')}</td></tr>`).join('');
   const body = `
     <div class="print-stats">
       <div>Total poulets reçus<b>${fmtN(total)}</b></div>
       <div>Nombre d'arrivages<b>${list.length}</b></div>
     </div>
     <table class="print-table">
-      <thead><tr><th>Date</th><th>Provenance</th><th style="text-align:right;">Total reçu</th><th>Répartition par catégorie</th></tr></thead>
+      <thead><tr><th>Date</th><th>Provenance</th><th style="text-align:right;">Total reçu</th><th>Répartition par lot</th></tr></thead>
       <tbody>${rows || `<tr><td colspan="4">Aucun arrivage sur cette période.</td></tr>`}</tbody>
     </table>`;
   printReport(`Rapport des arrivages — ${periodLabel(periodStates.arr)}`, body);
@@ -998,8 +1055,11 @@ function shareArrivalsWhatsApp(){
   const allDone = arrivals.filter(a=>a.status==='trie');
   const list = filterByPeriod(allDone, 'date', periodStates.arr).slice().sort((a,b)=>a.date.localeCompare(b.date));
   const total = list.reduce((s,a)=>s+a.totalReceived,0);
+  const catLabel = c=> c.kind==='decoupe'
+    ? `Découpe ${fmtN(c.qty)} poulets → ${(c.outputs||[]).map(o=>`${o.articleName} ${fmtN(o.qty)}${o.unit}`).join(', ')}`
+    : `${c.articleName}: ${fmtN(c.qty)}`;
   let text = `Rapport des arrivages — ${periodLabel(periodStates.arr)}\n${settings.businessName}\n\n`;
-  list.forEach(a=>{ text += `${fmtDate(a.date)} · ${a.provenance} : ${fmtN(a.totalReceived)} poulets\n`; });
+  list.forEach(a=>{ text += `${fmtDate(a.date)} · ${a.provenance} : ${fmtN(a.totalReceived)} poulets\n   ${a.categories.map(catLabel).join(' | ')}\n`; });
   text += `\nTOTAL : ${fmtN(total)} poulets (${list.length} arrivage${list.length>1?'s':''})`;
   window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
 }
@@ -1037,31 +1097,44 @@ function showArrivalDetail(id){
       <div><span>Total reçu</span><b>${fmtN(a.totalReceived)} poulets</b></div>
     </div>
     <div style="margin-top:12px;">
-      ${a.categories.map(c=>`
-        <div class="list-row"><div class="body"><div class="t1">${esc(c.articleName)}</div></div><div class="qty">${fmtN(c.qty)}</div></div>
-      `).join('')}
+      ${a.categories.map(c=>{
+        if(c.kind==='decoupe'){
+          return `
+          <div class="list-row" style="align-items:flex-start;">
+            <div class="icon" style="background:var(--ink)">🔪</div>
+            <div class="body">
+              <div class="t1">Découpe — ${fmtN(c.qty)} poulets</div>
+              <div class="t2">${(c.outputs||[]).map(o=>`${esc(o.articleName)} : ${fmtN(o.qty)} ${o.unit}`).join(' · ')}</div>
+            </div>
+          </div>`;
+        }
+        return `<div class="list-row"><div class="body"><div class="t1">${esc(c.articleName)}</div></div><div class="qty">${fmtN(c.qty)}</div></div>`;
+      }).join('')}
     </div>
     <button class="btn btn-outline full" style="margin-top:10px;" onclick="closeSheet()">Fermer</button>
   `);
 }
 
-/* ---- Triage : répartition par catégorie, doit correspondre exactement au total reçu ---- */
+/* ---- Triage : lots directs (catégorie unique) ou lots destinés à la découpe (plusieurs produits obtenus) ---- */
 let triageRows = [];
 function openTriageForm(arrivalId){
   const ar = arrivals.find(a=>a.id===arrivalId); if(!ar) return;
-  triageRows = ar.categories.length? ar.categories.map(c=>({articleId:c.articleId||'', articleName:c.articleName, qty:c.qty}))
-    : [{articleId:'', articleName:'', qty:''}];
+  triageRows = ar.categories.length? ar.categories.map(c=>
+    c.kind==='decoupe'
+      ? { kind:'decoupe', qty:c.qty, outputs:(c.outputs||[]).map(o=>({...o})) }
+      : { kind:'direct', articleId:c.articleId||'', articleName:c.articleName, qty:c.qty }
+  ) : [{ kind:'direct', articleId:'', articleName:'', qty:'' }];
   renderTriageSheet(ar);
 }
 function renderTriageSheet(ar){
   const readOnly = ar.status==='trie';
   openSheet(`
     <div class="sheet-head"><h3>Triage — ${esc(ar.provenance)}</h3><button class="close" onclick="closeSheet()">✕</button></div>
-    <p style="font-size:12.5px;color:var(--ink-soft);margin:-4px 0 12px;">Total reçu le ${fmtDate(ar.date)} : <b>${fmtN(ar.totalReceived)} poulets</b>. Répartissez ce total par catégorie avant l'entrée en chambre froide.</p>
+    <p style="font-size:12.5px;color:var(--ink-soft);margin:-4px 0 12px;">Total reçu le ${fmtDate(ar.date)} : <b>${fmtN(ar.totalReceived)} poulets</b>. Répartissez ce total par lot : soit une catégorie directe (poulet entier...), soit un lot destiné à la découpe (ailes, cuisses, pattes...).</p>
     <div id="triage-rows">${triageRows.map((r,i)=>triageRowHtml(r,i,readOnly)).join('')}</div>
-    ${!readOnly? `<button class="btn-ghost" onclick="addTriageRow('${ar.id}')" style="margin:6px 0 14px;">＋ Ajouter une catégorie</button>` : ''}
+    ${!readOnly? `<button class="btn-ghost" onclick="addTriageRow()" style="margin:6px 0 14px;">＋ Ajouter un lot</button>` : ''}
     <div id="triage-total" class="list-row" style="background:var(--bg-soft,#f5f4f0);border-radius:10px;">
-      <div class="body"><div class="t1">Total réparti</div></div>
+      <div class="body"><div class="t1">Total réparti (en poulets)</div></div>
       <div class="qty" id="triage-sum-display">0 / ${fmtN(ar.totalReceived)}</div>
     </div>
     ${!readOnly? `<button class="btn btn-primary full" style="margin-top:14px;" onclick="submitTriage('${ar.id}')">Valider et envoyer en chambre froide</button>` : ''}
@@ -1069,22 +1142,80 @@ function renderTriageSheet(ar){
   updateTriageSum(ar.totalReceived);
 }
 function triageRowHtml(r,i,readOnly){
+  const kindTabs = !readOnly ? `
+    <div class="row2" style="margin-bottom:8px;">
+      <button type="button" class="chip ${r.kind==='direct'?'active':''}" onclick="setTriageRowKind(${i},'direct')" style="flex:1;justify-content:center;">Catégorie directe</button>
+      <button type="button" class="chip ${r.kind==='decoupe'?'active':''}" onclick="setTriageRowKind(${i},'decoupe')" style="flex:1;justify-content:center;">Destiné à la découpe</button>
+    </div>` : '';
+
+  if(r.kind==='decoupe'){
+    return `
+    <div class="card" style="background:var(--amber-soft);border:1px solid var(--amber);margin-bottom:10px;padding:12px;" data-row="${i}">
+      ${kindTabs}
+      <div class="field" style="margin-bottom:8px;">
+        <label>Poulets destinés à la découpe</label>
+        <input ${readOnly?'disabled':''} type="number" min="0" step="1" value="${r.qty}" oninput="onTriageQtyChange(${i}, this.value)">
+      </div>
+      <div style="font-size:12px;color:var(--ink-soft);margin-bottom:6px;">Produits obtenus après découpe :</div>
+      ${(r.outputs||[]).map((o,j)=>decoupeOutputRowHtml(o,i,j,readOnly)).join('') || (readOnly? `<div style="font-size:12.5px;color:var(--ink-soft);">Aucun produit renseigné.</div>` : '')}
+      ${!readOnly? `
+        <button type="button" class="btn-ghost" onclick="addDecoupeOutput(${i})" style="margin:2px 0 8px;">＋ Ajouter un produit</button>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;">
+          ${DECOUPE_PRESETS.map(p=>`<button type="button" class="chip" style="font-size:11px;" onclick="addDecoupeOutput(${i}, '${esc(p)}')">＋ ${esc(p)}</button>`).join('')}
+        </div>
+        <button type="button" class="btn-ghost" onclick="removeTriageRow(${i})" style="color:var(--red);font-size:12.5px;">✕ Retirer ce lot</button>
+      `:''}
+    </div>`;
+  }
+
   const options = articles.map(a=>`<option value="${a.id}" ${a.id===r.articleId?'selected':''}>${esc(a.name)}</option>`).join('');
   return `
-  <div class="row2" style="align-items:end;margin-bottom:8px;" data-row="${i}">
+  <div class="card" style="border:1px solid var(--line);margin-bottom:10px;padding:12px;" data-row="${i}">
+    ${kindTabs}
+    <div class="row2" style="align-items:end;">
+      <div class="field" style="margin-bottom:0;">
+        <label>Catégorie</label>
+        <select ${readOnly?'disabled':''} onchange="onTriageArticleChange(${i}, this.value)">
+          <option value="">— Nouvelle catégorie —</option>
+          ${options}
+        </select>
+        ${!r.articleId? `<input ${readOnly?'disabled':''} type="text" placeholder="Nom de la nouvelle catégorie" value="${esc(r.articleName)}" style="margin-top:6px;" oninput="triageRows[${i}].articleName=this.value">` : ''}
+      </div>
+      <div class="field" style="margin-bottom:0;">
+        <label>Quantité</label>
+        <input ${readOnly?'disabled':''} type="number" min="0" step="1" value="${r.qty}" oninput="onTriageQtyChange(${i}, this.value)">
+      </div>
+    </div>
+    ${!readOnly? `<button type="button" class="btn-ghost" onclick="removeTriageRow(${i})" style="margin-top:8px;color:var(--red);font-size:12.5px;">✕ Retirer ce lot</button>`:''}
+  </div>`;
+}
+function decoupeOutputRowHtml(o,i,j,readOnly){
+  const options = articles.map(a=>`<option value="${a.id}" ${a.id===o.articleId?'selected':''}>${esc(a.name)}</option>`).join('');
+  return `
+  <div class="row2" style="align-items:end;margin-bottom:6px;background:#fff;border-radius:8px;padding:8px;">
     <div class="field" style="margin-bottom:0;">
-      <label>Catégorie</label>
-      <select ${readOnly?'disabled':''} onchange="onTriageArticleChange(${i}, this.value)">
-        <option value="">— Nouvelle catégorie —</option>
+      <select ${readOnly?'disabled':''} onchange="onDecoupeOutputArticleChange(${i},${j},this.value)" style="margin-bottom:4px;">
+        <option value="">— Nouveau produit —</option>
         ${options}
       </select>
-      ${!r.articleId? `<input ${readOnly?'disabled':''} type="text" placeholder="Nom de la nouvelle catégorie" value="${esc(r.articleName)}" style="margin-top:6px;" oninput="triageRows[${i}].articleName=this.value">` : ''}
+      ${!o.articleId? `<input ${readOnly?'disabled':''} type="text" placeholder="Nom du produit" value="${esc(o.articleName)}" oninput="triageRows[${i}].outputs[${j}].articleName=this.value">`:''}
     </div>
-    <div class="field" style="margin-bottom:0;">
-      <label>Quantité</label>
-      <input ${readOnly?'disabled':''} type="number" min="0" step="1" value="${r.qty}" oninput="onTriageQtyChange(${i}, this.value)">
+    <div class="field" style="margin-bottom:0;display:flex;gap:6px;">
+      <input ${readOnly?'disabled':''} type="number" min="0" step="any" value="${o.qty}" placeholder="Qté" style="flex:1;min-width:0;" oninput="onDecoupeOutputQtyChange(${i},${j},this.value)">
+      <select ${readOnly?'disabled':''} onchange="triageRows[${i}].outputs[${j}].unit=this.value" style="width:74px;flex:none;">
+        <option value="kg" ${o.unit==='kg'?'selected':''}>kg</option>
+        <option value="pièce" ${o.unit==='pièce'?'selected':''}>pièce</option>
+      </select>
+      ${!readOnly? `<button type="button" onclick="removeDecoupeOutput(${i},${j})" style="border:none;background:none;color:var(--red);font-size:16px;flex:none;">✕</button>`:''}
     </div>
   </div>`;
+}
+function setTriageRowKind(i, kind){
+  const keepQty = triageRows[i].qty || '';
+  triageRows[i] = kind==='decoupe'
+    ? { kind:'decoupe', qty:keepQty, outputs:[] }
+    : { kind:'direct', articleId:'', articleName:'', qty:keepQty };
+  reRenderTriageRows();
 }
 function onTriageArticleChange(i, articleId){
   const art = articleById(articleId);
@@ -1096,14 +1227,38 @@ function onTriageQtyChange(i, val){
   triageRows[i].qty = Number(val)||0;
   updateTriageSumFromDOM();
 }
+function addDecoupeOutput(i, presetName){
+  if(!triageRows[i].outputs) triageRows[i].outputs = [];
+  triageRows[i].outputs.push({ articleId:'', articleName: presetName||'', qty:'', unit:'kg' });
+  reRenderTriageRows();
+}
+function removeDecoupeOutput(i,j){
+  triageRows[i].outputs.splice(j,1);
+  reRenderTriageRows();
+}
+function onDecoupeOutputArticleChange(i,j,articleId){
+  const art = articleById(articleId);
+  triageRows[i].outputs[j].articleId = articleId;
+  triageRows[i].outputs[j].articleName = art ? art.name : '';
+  if(art) triageRows[i].outputs[j].unit = art.unit || triageRows[i].outputs[j].unit;
+  reRenderTriageRows();
+}
+function onDecoupeOutputQtyChange(i,j,val){
+  triageRows[i].outputs[j].qty = Number(val)||0;
+}
+function removeTriageRow(i){
+  triageRows.splice(i,1);
+  if(!triageRows.length) triageRows.push({ kind:'direct', articleId:'', articleName:'', qty:'' });
+  reRenderTriageRows();
+}
 function reRenderTriageRows(){
   const container = document.getElementById('triage-rows');
   if(!container) return;
   container.innerHTML = triageRows.map((r,i)=>triageRowHtml(r,i,false)).join('');
   updateTriageSumFromDOM();
 }
-function addTriageRow(arrivalId){
-  triageRows.push({articleId:'', articleName:'', qty:''});
+function addTriageRow(){
+  triageRows.push({ kind:'direct', articleId:'', articleName:'', qty:'' });
   reRenderTriageRows();
 }
 function updateTriageSumFromDOM(){
@@ -1124,11 +1279,23 @@ function updateTriageSum(totalReceived){
 }
 function submitTriage(arrivalId){
   const ar = arrivals.find(a=>a.id===arrivalId); if(!ar) return;
-  const rows = triageRows.map(r=>({
-    articleId: r.articleId || '',
-    articleName: r.articleId ? (articleById(r.articleId)?.name||r.articleName) : (r.articleName||'').trim(),
-    qty: Number(r.qty)||0
-  })).filter(r=>r.articleName);
+  const rows = triageRows.map(r=>{
+    if(r.kind==='decoupe'){
+      return {
+        kind:'decoupe', qty: Number(r.qty)||0,
+        outputs: (r.outputs||[]).map(o=>({
+          articleId: o.articleId||'',
+          articleName: o.articleId ? (articleById(o.articleId)?.name||o.articleName) : (o.articleName||'').trim(),
+          qty: Number(o.qty)||0, unit: o.unit||'kg'
+        }))
+      };
+    }
+    return {
+      kind:'direct', articleId: r.articleId||'',
+      articleName: r.articleId ? (articleById(r.articleId)?.name||r.articleName) : (r.articleName||'').trim(),
+      qty: Number(r.qty)||0
+    };
+  }).filter(r=> r.kind==='decoupe' ? true : !!r.articleName);
   const ok = confirmTriage(arrivalId, rows);
   if(!ok) return;
   closeSheet();
@@ -1278,7 +1445,7 @@ let stkArticleFilter = 'tous';
 function printStockHistoryReport(){
   const list = filterByPeriod(movements.filter(m=> stkArticleFilter==='tous' || m.articleId===stkArticleFilter), 'date', periodStates.stk)
     .slice().sort((a,b)=>a.date.localeCompare(b.date));
-  const typeLabel = t=> ({entree:'Ajustement +', sortie:'Sortie', vente:'Vente', ajustement_plus:'Ajustement +', ajustement_moins:'Ajustement -'}[t] || t);
+  const typeLabel = t=> ({entree:'Ajustement +', sortie:'Sortie', vente:'Vente', ajustement_plus:'Ajustement +', ajustement_moins:'Ajustement -', decoupe_conso:'Poulets → découpe'}[t] || t);
   const rows = list.map(m=>`<tr><td>${fmtDate(m.date)}</td><td>${typeLabel(m.type)}</td><td>${esc(m.articleName)}</td><td style="text-align:right;">${fmtN(m.qty)} ${m.unit}</td><td>${esc(m.party||'—')}</td>${m.total? `<td style="text-align:right;">${fmtN(m.total)} ${settings.currency}</td>`:'<td>—</td>'}</tr>`).join('');
   const articleLabel = stkArticleFilter==='tous' ? 'Tous les articles' : (articleById(stkArticleFilter)?.name || 'Article');
   const body = `
@@ -1295,7 +1462,7 @@ function printStockHistoryReport(){
 function shareStockHistoryWhatsApp(){
   const list = filterByPeriod(movements.filter(m=> stkArticleFilter==='tous' || m.articleId===stkArticleFilter), 'date', periodStates.stk)
     .slice().sort((a,b)=>a.date.localeCompare(b.date));
-  const typeLabel = t=> ({entree:'Ajust.+', sortie:'Sortie', vente:'Vente', ajustement_plus:'Ajust.+', ajustement_moins:'Ajust.-'}[t] || t);
+  const typeLabel = t=> ({entree:'Ajust.+', sortie:'Sortie', vente:'Vente', ajustement_plus:'Ajust.+', ajustement_moins:'Ajust.-', decoupe_conso:'→ découpe'}[t] || t);
   let text = `Historique des mouvements — ${periodLabel(periodStates.stk)}\n${settings.businessName}\n\n`;
   list.forEach(m=>{ text += `${fmtDate(m.date)} · ${typeLabel(m.type)} · ${m.articleName} : ${fmtN(m.qty)} ${m.unit}\n`; });
   text += `\nTotal : ${list.length} opération(s)`;
