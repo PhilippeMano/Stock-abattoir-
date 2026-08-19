@@ -12,10 +12,11 @@ jobs:
     - name: Récupérer le code HTML
       uses: actions/checkout@v4
 
+    # Correction ici : Passage à Node.js 22
     - name: Configurer Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: 20
+        node-version: 22
 
     - name: Configurer Java JDK 21
       uses: actions/setup-java@v4
